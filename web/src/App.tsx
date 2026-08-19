@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from './i18n/LanguageContext'
 import type { Lang } from './i18n/types'
 import './App.css'
+
+const SECTION_IDS = ['about', 'stack', 'experience', 'contact'] as const
 
 function joinList(items: readonly string[]) {
   return items.join(' · ')
@@ -10,13 +12,60 @@ function joinList(items: readonly string[]) {
 function App() {
   const { lang, setLang, t } = useLanguage()
   const [scrolled, setScrolled] = useState(false)
+  const [activeSection, setActiveSection] = useState<string>('')
   const { shared } = t
+
+  const navItems = useMemo(
+    () => [
+      { id: 'about', label: t.nav.about },
+      { id: 'stack', label: t.nav.stack },
+      { id: 'experience', label: t.nav.experience },
+      { id: 'contact', label: t.nav.contact },
+    ],
+    [t.nav.about, t.nav.stack, t.nav.experience, t.nav.contact],
+  )
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const elements = SECTION_IDS.map((id) => document.getElementById(id)).filter(
+      (el): el is HTMLElement => Boolean(el),
+    )
+    if (!elements.length) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+
+        if (visible[0]?.target.id) {
+          setActiveSection(visible[0].target.id)
+          return
+        }
+
+        // Near bottom: keep last section active
+        const nearBottom =
+          window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 48
+        if (nearBottom) {
+          setActiveSection(SECTION_IDS[SECTION_IDS.length - 1])
+        }
+      },
+      {
+        root: null,
+        // Account for sticky nav and prefer the section occupying the upper half
+        rootMargin: '-28% 0px -55% 0px',
+        threshold: [0, 0.15, 0.35, 0.55, 0.75, 1],
+      },
+    )
+
+    for (const el of elements) observer.observe(el)
+    return () => observer.disconnect()
   }, [])
 
   return (
@@ -27,10 +76,16 @@ function App() {
             {shared.name}
           </a>
           <nav className="nav__links" aria-label={t.nav.sectionsAria}>
-            <a href="#about">{t.nav.about}</a>
-            <a href="#stack">{t.nav.stack}</a>
-            <a href="#experience">{t.nav.experience}</a>
-            <a href="#contact">{t.nav.contact}</a>
+            {navItems.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className={activeSection === item.id ? 'is-active' : undefined}
+                aria-current={activeSection === item.id ? 'true' : undefined}
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
           <div className="nav__end">
             <div className="lang" role="group" aria-label={t.nav.languageAria}>
