@@ -206,7 +206,7 @@
 
 .hero__photo {
   justify-self: center;
-  width: min(100%, 310px);
+  width: min(100%, 380px);
 }
 
 .hero__photo figure {
@@ -222,9 +222,9 @@
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
-  object-position: center 28%;
+  object-position: 68% 22%;
   border-radius: 12px;
   background: var(--photo-frame);
 }
