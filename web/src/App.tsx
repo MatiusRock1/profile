@@ -73,7 +73,15 @@ function App() {
       <header className={`nav${scrolled ? ' is-scrolled' : ''}`}>
         <div className="wrap nav__inner">
           <a className="nav__brand" href="#top">
-            {shared.name}
+            <img
+              className="nav__logo"
+              src="/isotype.png"
+              alt=""
+              width={36}
+              height={36}
+              decoding="async"
+            />
+            <span>{shared.name}</span>
           </a>
           <nav className="nav__links" aria-label={t.nav.sectionsAria}>
             {navItems.map((item) => (

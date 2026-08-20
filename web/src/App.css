@@ -30,11 +30,31 @@
 }
 
 .nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
   font-family: var(--font-display);
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   text-decoration: none;
+  min-width: 0;
+}
+
+.nav__logo {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.55rem;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #0b1520;
+  box-shadow: 0 0 0 1px rgba(28, 25, 23, 0.08);
+}
+
+.nav__brand span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav__links {
