@@ -1,9 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLanguage } from './i18n/LanguageContext'
 import type { Lang } from './i18n/types'
 import './App.css'
 
 const SECTION_IDS = ['about', 'stack', 'experience', 'contact'] as const
+type SectionId = (typeof SECTION_IDS)[number]
+
+function isSectionId(value: string): value is SectionId {
+  return (SECTION_IDS as readonly string[]).includes(value)
+}
 
 function joinList(items: readonly string[]) {
   return items.join(' · ')
@@ -12,7 +17,13 @@ function joinList(items: readonly string[]) {
 function App() {
   const { lang, setLang, t } = useLanguage()
   const [scrolled, setScrolled] = useState(false)
-  const [activeSection, setActiveSection] = useState<string>('')
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    const hash = window.location.hash.replace(/^#/, '')
+    return isSectionId(hash) ? hash : ''
+  })
+  const pinnedUntil = useRef(0)
+  const pinnedId = useRef<string | null>(null)
   const { shared } = t
 
   const navItems = useMemo(
@@ -25,48 +36,79 @@ function App() {
     [t.nav.about, t.nav.stack, t.nav.experience, t.nav.contact],
   )
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+  const pinSection = useCallback((id: string, ms = 1000) => {
+    if (!isSectionId(id)) return
+    pinnedId.current = id
+    pinnedUntil.current = performance.now() + ms
+    setActiveSection(id)
   }, [])
 
   useEffect(() => {
-    const elements = SECTION_IDS.map((id) => document.getElementById(id)).filter(
-      (el): el is HTMLElement => Boolean(el),
-    )
-    if (!elements.length) return
+    const getMarker = () => {
+      const nav = document.querySelector('.nav')
+      const navH = nav instanceof HTMLElement ? nav.getBoundingClientRect().height : 68
+      return Math.max(72, navH + 12)
+    }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+    const updateFromScroll = () => {
+      setScrolled(window.scrollY > 8)
 
-        if (visible[0]?.target.id) {
-          setActiveSection(visible[0].target.id)
-          return
-        }
+      if (pinnedId.current && performance.now() < pinnedUntil.current) {
+        setActiveSection(pinnedId.current)
+        return
+      }
+      pinnedId.current = null
 
-        // Near bottom: keep last section active
-        const nearBottom =
-          window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 48
-        if (nearBottom) {
-          setActiveSection(SECTION_IDS[SECTION_IDS.length - 1])
-        }
-      },
-      {
-        root: null,
-        // Account for sticky nav and prefer the section occupying the upper half
-        rootMargin: '-28% 0px -55% 0px',
-        threshold: [0, 0.15, 0.35, 0.55, 0.75, 1],
-      },
-    )
+      const marker = getMarker()
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight
+      if (maxScroll > 0 && window.scrollY >= maxScroll - 12) {
+        setActiveSection('contact')
+        return
+      }
 
-    for (const el of elements) observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+      // Last nav section whose top has crossed under the sticky header.
+      // Domain/strengths keep Experience active until Contact.
+      let current = ''
+      for (const id of SECTION_IDS) {
+        const el = document.getElementById(id)
+        if (!el) continue
+        if (el.getBoundingClientRect().top - marker <= 1) current = id
+      }
+      setActiveSection(current)
+    }
+
+    const onHashChange = () => {
+      const hash = window.location.hash.replace(/^#/, '')
+      if (isSectionId(hash)) pinSection(hash)
+      else updateFromScroll()
+    }
+
+    const initialHash = window.location.hash.replace(/^#/, '')
+    if (isSectionId(initialHash)) pinSection(initialHash, 1200)
+
+    updateFromScroll()
+    const raf = window.requestAnimationFrame(updateFromScroll)
+    const t1 = window.setTimeout(updateFromScroll, 150)
+    const t2 = window.setTimeout(updateFromScroll, 450)
+
+    window.addEventListener('scroll', updateFromScroll, { passive: true })
+    window.addEventListener('resize', updateFromScroll)
+    window.addEventListener('hashchange', onHashChange)
+    window.addEventListener('scrollend', updateFromScroll)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.removeEventListener('scroll', updateFromScroll)
+      window.removeEventListener('resize', updateFromScroll)
+      window.removeEventListener('hashchange', onHashChange)
+      window.removeEventListener('scrollend', updateFromScroll)
+    }
+  }, [pinSection])
+
+  const onNavClick = (id: string) => {
+    pinSection(id)
+  }
 
   return (
     <div className="site">
@@ -90,6 +132,7 @@ function App() {
                 href={`#${item.id}`}
                 className={activeSection === item.id ? 'is-active' : undefined}
                 aria-current={activeSection === item.id ? 'true' : undefined}
+                onClick={() => onNavClick(item.id)}
               >
                 {item.label}
               </a>
